@@ -283,6 +283,24 @@ impl PartialOrd for AtomicIncr {
 
 impl Eq for AtomicIncr {}
 
+impl From<u64> for Incr {
+    fn from(val: u64) -> Self {
+        Incr(val)
+    }
+}
+
+impl From<u64> for RcIncr {
+    fn from(val: u64) -> Self {
+        RcIncr(Rc::new(Cell::new(val)))
+    }
+}
+
+impl From<u64> for AtomicIncr {
+    fn from(val: u64) -> Self {
+        AtomicIncr(Arc::new(Atomic::new(val)))
+    }
+}
+
 #[allow(unused)]
 #[cfg(test)]
 mod tests {
