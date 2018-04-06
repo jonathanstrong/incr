@@ -6,7 +6,7 @@ description = "Simple, fast and self-contained data structures for checking whet
 homepage = "https://github.com/jonathanstrong/incr"
 repository = "https://github.com/jonathanstrong/incr"
 readme = "README.md"
-keywords = ["sequence", "timestamps", "event loop", "atomic", "increment"]
+keywords = ["sequence", "timestamps", "event-loop", "atomic", "increment"]
 license = "MIT"
 license-file = "LICENSE"
 
