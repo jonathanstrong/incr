@@ -1,0 +1,13 @@
+[package]
+name = "incr"
+version = "0.1.0"
+authors = ["Jonathan Strong <jonathan.strong@gmail.com>"]
+
+[dependencies]
+
+[features]
+default = ["nightly"]
+nightly = []
+
+[profile.test]
+opt-level = 3
