@@ -31,6 +31,7 @@ extern crate test;
 
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::cmp;
 use std::rc::Rc;
 use std::cell::Cell;
 use std::sync::Arc;
@@ -59,7 +60,7 @@ type Atomic = AtomicUsize;
 /// assert_eq!(last.get(), 2);
 /// ```
 ///
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, PartialOrd, Eq)]
 pub struct Incr(u64);
 
 /// A map interface allowing fast checks of whether a newly observed value
@@ -83,7 +84,7 @@ pub struct Incr(u64);
 /// assert_eq!(last.get(&"not a key"), 0);
 /// ```
 ///
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq)]
 pub struct Map<K: Eq + Hash>(HashMap<K, u64>);
 
 /// The `Rc<Cell<_>>` backed storage of `RcIncr` provides flexibility in situations
@@ -110,7 +111,7 @@ pub struct Map<K: Eq + Hash>(HashMap<K, u64>);
 /// }
 /// ```
 ///
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, PartialOrd, Eq)]
 pub struct RcIncr(Rc<Cell<u64>>);
 
 /// `AtomicIncr` is a threadsafe, yet very fast counter, utilizing compare
@@ -267,6 +268,20 @@ impl AtomicIncr {
         self.0
     }
 }
+
+impl PartialEq for AtomicIncr {
+    fn eq(&self, other: &Self) -> bool {
+        self.get() == other.get()
+    }
+}
+
+impl PartialOrd for AtomicIncr {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.get().cmp(&other.get()))
+    }
+}
+
+impl Eq for AtomicIncr {}
 
 #[allow(unused)]
 #[cfg(test)]
