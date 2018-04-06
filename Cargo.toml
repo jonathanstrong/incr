@@ -9,6 +9,7 @@ readme = "README.md"
 keywords = ["sequence", "timestamps", "event-loop", "atomic", "increment"]
 license = "MIT"
 license-file = "LICENSE"
+documentation = "https://docs.rs/incr/0.1.0/incr/"
 
 [dependencies]
 
