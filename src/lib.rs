@@ -247,7 +247,7 @@ impl AtomicIncr {
         loop {
             let prev = self.0.load(Ordering::Acquire);
             if val > prev {
-                if let Ok(_) = self.0.compare_exchange(prev, val, Ordering::Acquire, Ordering::Acquire) {
+                if let Ok(_) = self.0.compare_exchange(prev, val, Ordering::AcqRel, Ordering::Acquire) {
                     gt = true;
                     break
                 }
