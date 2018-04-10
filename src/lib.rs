@@ -84,7 +84,7 @@ pub struct Incr(u64);
 /// assert_eq!(last.get(&"not a key"), 0);
 /// ```
 ///
-#[derive(Default, Clone, PartialEq)]
+#[derive(Default, Clone, PartialEq, Debug)]
 pub struct Map<K: Eq + Hash>(HashMap<K, u64>);
 
 /// The `Rc<Cell<_>>` backed storage of `RcIncr` provides flexibility in situations
