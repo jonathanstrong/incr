@@ -24,12 +24,19 @@
 //! as the backing storage for `AtomicIncr` (vs. `AtomicUsize` otherwise). Also,
 //! nightly is required to run the benchmarks.
 //!
+//! Enabling the "fnv" feature will use a Fowler-Noll-Vo hash function from the `fnv`
+//! crate for the `HashMap` used by `Map` and `AtomicMap`. FNV is faster than the
+//! default hasher but provides no protection against malicious inputs.
+//!
 #![cfg_attr(feature = "nightly", feature(integer_atomics, test))]
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
+#[cfg(feature = "fnv")]
+extern crate fnv;
 
-use std::collections::HashMap;
+#[cfg(not(feature = "fnv"))]
+use std::collections;
 use std::hash::Hash;
 use std::cmp;
 use std::rc::Rc;
@@ -46,6 +53,10 @@ use std::sync::atomic::AtomicUsize;
 type Atomic = AtomicU64;
 #[cfg(not(feature = "nightly"))]
 type Atomic = AtomicUsize;
+#[cfg(feature = "fnv")]
+type HashMap<K, V> = fnv::FnvHashMap<K, V>;
+#[cfg(not(feature = "fnv"))]
+type HashMap<K, V> = collections::HashMap<K, V>;
 
 /// A self-contained struct for quickly checking whether a newly observed value
 /// is greater than any previously observed value.
