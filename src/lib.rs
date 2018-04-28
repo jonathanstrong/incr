@@ -10,8 +10,8 @@
 //! check against future values.
 //!
 //! Two of the `is_new` implementations (`Incr` and `Map`) require an `&mut self`
-//! signature, while `RcIncr` and `AtomicIncr` require only `&self` due to `RcIncr`'s
-//! interior mutability and `AtomicIncr`'s thread safe syncrhonization.
+//! signature, while `RcIncr` and `AtomicIncr` and `AtomicMap` require only `&self`
+//! due to `RcIncr`'s interior mutability and `AtomicIncr`'s thread safe syncrhonization.
 //!
 //! The cost of checking a new value is minimal: 0-2ns for the single-threaded
 //! implementations, and ~5-10ns for `AtomicIncr`, except in cases of pathological
@@ -36,6 +36,7 @@ use std::rc::Rc;
 use std::cell::Cell;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::borrow::Borrow;
 #[cfg(feature = "nightly")]
 use std::sync::atomic::AtomicU64;
 #[cfg(not(feature = "nightly"))]
@@ -167,6 +168,48 @@ pub struct RcIncr(Rc<Cell<u64>>);
 #[derive(Default, Clone)]
 pub struct AtomicIncr(Arc<Atomic>);
 
+/// Like `Map`, `AtomicMap` provides simple, fast sequence checking by key, but with
+/// the thread-safe backing storage of `AtomicIncr`.
+///
+/// # Tradeoffs
+///
+/// `AtomicMap` is not a concurrent hashmap. Importantly **key insertion is not
+/// synchronized**. The intended use case is to initialize the map fully on program start,
+/// inserting whatever keys will be used throughout its life, and cloning this master
+/// instance to be used by any threads tracking sequences by those keys.
+///
+/// A fully synchronized map was not chosen for performance reasons. If keys
+/// are not fully known when threads are launched, the best options include:
+///
+/// - wrap a normal `Map` in an `Arc<Mutex<Map>>` or `Arc<RwLock<Map>>`,
+/// - utilize a third-party crate providing a concurrent hashmap implementation
+///   (with `Incr` values).
+///
+/// For a given (already inserted) key, any `clone()`d `AtomicMap` will use/have a
+/// value at that key that *is* synchronized across threads (the inner value is
+/// an `Arc<AtomicU64>`).
+///
+/// # Examples
+///
+/// ```
+/// use incr::AtomicMap;
+///
+/// let mut last: AtomicMap<&'static str> = Default::default();
+///
+/// assert_eq!(last.insert("a", 1), true);
+/// assert_eq!(last.is_new("missing_key", 1), false); // note difference from `Map`
+/// assert_eq!(last.insert("b", 1), true);
+/// assert_eq!(last.is_new("a", 1), false);
+/// assert_eq!(last.is_new("b", 3), true);
+/// assert_eq!(last.is_new_or_insert("c", 1), true);
+/// assert_eq!(last.is_new("c", 1), false);
+/// assert_eq!(last.get("b"), 3);
+/// assert_eq!(last.get("not a key"), 0);
+/// ```
+///
+#[derive(Default, Clone)]
+pub struct AtomicMap<K: Eq + Hash>(HashMap<K, AtomicIncr>);
+
 impl Incr {
     /// Returns `true` if `val` is greater than the highest previously observed
     /// value. If `val` is a new maximum, it is stored in `self` for checks against
@@ -269,6 +312,115 @@ impl AtomicIncr {
     }
 }
 
+impl<K> AtomicMap<K>
+    where K: Eq + Hash
+{
+    /// Returns `true` if `key` exists and `val` is greater than the largest
+    /// previously observed value (for `key`). Returns `false` if `key` does
+    /// not exist in the inner map. See `AtomicMap::check_or_insert` for a function
+    /// that behaves similarly to `Map::is_new`.
+    ///
+    /// # Tradeoffs
+    ///
+    /// This function has a different signature and works differently than
+    /// `Map::is_new`.
+    ///
+    /// Specifically, `Map::is_new`:
+    ///
+    /// - takes `&mut self`
+    /// - consumes `key`
+    /// - inserts `val` at `key` if `key` was not already present in the map.
+    ///
+    /// By contrast, `AtomicIncr`:
+    ///
+    /// - takes `&self`
+    /// - borrows `&key`
+    /// - does not insert `val` on a key miss, instead "silently" returning `false`
+    ///
+    /// This design was chosen for several reasons, including:
+    ///
+    /// - key insertions are not synchronized across threads. Instead, the map is
+    ///   expected to have been initialized on program start, and a key miss is most
+    ///   likely an error
+    /// - A `&self` signature provides more flexibility, and is possible, unlike with
+    ///   `Map`, because the `AtomicIncr::is_new` function takes `&self`
+    ///
+    /// The `AtomicMap::check_or_insert` function provides insert-on-key-miss
+    /// functionality if desired.
+    ///
+    /// Possibly, it would be less confusing if this function returned `Option<bool>`,
+    /// where a key miss would return `None`. Feedback on this issue would be
+    /// appreciated.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate incr;
+    /// use incr::AtomicMap;
+    /// # fn main() {
+    /// let mut last: AtomicMap<&'static str> = Default::default();
+    ///
+    /// assert_eq!(last.is_new("a", 1), false);
+    /// assert_eq!(last.contains_key("a"), false);
+    /// assert_eq!(last.is_new_or_insert("a", 1), true);
+    /// assert_eq!(last.get("a"), 1);
+    /// assert_eq!(last.insert("b", 1), true);
+    /// assert_eq!(last.is_new("b", 2), true);
+    /// assert_eq!(last.is_new("b", 2), false);
+    /// # }
+    /// ```
+    ///
+    pub fn is_new<Q>(&self, key: &Q, val: u64) -> bool
+        where K: Borrow<Q>,
+              Q: ?Sized + Hash + Eq
+    {
+        self.0.get(key)
+            .map(move |x| x.is_new(val))
+            .unwrap_or(false)
+    }
+
+    /// Like `is_new`, but inserts `val` at `key` if the inner map did not
+    /// previously contain `key`.
+    ///
+    /// This may be renamed to `check_or_insert` in the future.
+    pub fn is_new_or_insert(&mut self, key: K, val: u64) -> bool {
+        self.0.entry(key)
+            .or_insert_with(Default::default)
+            .is_new(val)
+    }
+
+    /// An alias for, and Works identically to, `is_new_or_insert`. It's
+    /// not possible, using the public api, to decrease the value at a given
+    /// key, so calling this with a `val` lower than the current value
+    /// would simply return `false` and leave the higher value in the map
+    /// unchanged.
+    pub fn insert(&mut self, key: K, val: u64) -> bool {
+        self.is_new_or_insert(key, val)
+    }
+
+    /// Returns the highest observed value at `key`, or, if `key` does not exist,
+    /// returns `0`.
+    pub fn get<Q>(&self, key: &Q) -> u64
+        where K: Borrow<Q>,
+              Q: ?Sized + Hash + Eq
+    {
+        self.0.get(key)
+            .map(|x| x.get())
+            .unwrap_or(0)
+    }
+
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+        where K: Borrow<Q>,
+              Q: ?Sized + Hash + Eq
+    {
+        self.0.contains_key(key)
+    }
+
+    pub fn len(&self) -> usize { self.0.len() }
+
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
+}
+
 impl PartialEq for AtomicIncr {
     fn eq(&self, other: &Self) -> bool {
         self.get() == other.get()
@@ -309,6 +461,22 @@ mod tests {
     use std::thread;
     #[cfg(feature = "nightly")]
     use test::Bencher;
+
+    #[test]
+    fn atomic_map_key_ergonomics() {
+        let mut last: AtomicMap<String> = Default::default();
+        let a = String::from("a");
+        last.insert(a.clone(), 10);
+        assert_eq!(last.get(&a), 10);
+
+        let mut last: AtomicMap<&'static str> = Default::default();
+        last.insert("a", 11);
+        assert_eq!(last.get("a"), 11);
+
+        let mut last: AtomicMap<u64> = Default::default();
+        last.insert(1, 12);
+        assert_eq!(last.get(&1), 12);
+    }
 
     macro_rules! stairway_to_heaven {
         ($f:ident, $t:ident) => {
