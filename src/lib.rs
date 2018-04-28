@@ -72,7 +72,7 @@ type HashMap<K, V> = collections::HashMap<K, V>;
 /// assert_eq!(last.get(), 2);
 /// ```
 ///
-#[derive(Default, Clone, PartialEq, PartialOrd, Eq)]
+#[derive(Default, Clone, PartialEq, PartialOrd, Eq, Debug)]
 pub struct Incr(u64);
 
 /// A map interface allowing fast checks of whether a newly observed value
@@ -123,7 +123,7 @@ pub struct Map<K: Eq + Hash>(HashMap<K, u64>);
 /// }
 /// ```
 ///
-#[derive(Default, Clone, PartialEq, PartialOrd, Eq)]
+#[derive(Default, Clone, PartialEq, PartialOrd, Eq, Debug)]
 pub struct RcIncr(Rc<Cell<u64>>);
 
 /// `AtomicIncr` is a threadsafe, yet very fast counter, utilizing compare
@@ -202,7 +202,7 @@ pub struct RcIncr(Rc<Cell<u64>>);
 /// stop.store(true, Ordering::SeqCst);
 /// ```
 ///
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct AtomicIncr(Arc<Atomic>);
 
 /// Like `Map`, `AtomicMap` provides simple, fast sequence checking by key, but with
@@ -244,7 +244,7 @@ pub struct AtomicIncr(Arc<Atomic>);
 /// assert_eq!(last.get("not a key"), 0);
 /// ```
 ///
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct AtomicMap<K: Eq + Hash>(HashMap<K, AtomicIncr>);
 
 impl Incr {
