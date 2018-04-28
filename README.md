@@ -32,7 +32,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-incr = "0.1"
+incr = "0.2"
 ```
 
 ## Examples
