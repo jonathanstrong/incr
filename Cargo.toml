@@ -1,6 +1,6 @@
 [package]
 name = "incr"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Jonathan Strong <jonathan.strong@gmail.com>"]
 description = "Simple, fast and self-contained data structures for checking whether a new value is greater than the previous maximum."
 homepage = "https://github.com/jonathanstrong/incr"
@@ -8,7 +8,7 @@ repository = "https://github.com/jonathanstrong/incr"
 readme = "README.md"
 keywords = ["sequence", "timestamps", "event-loop", "atomic", "increment"]
 license-file = "LICENSE"
-documentation = "https://docs.rs/incr/0.1.0/incr/"
+documentation = "https://docs.rs/incr/0.2.0/incr/"
 
 [dependencies]
 fnv = { version = "1", optional = true }
