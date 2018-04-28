@@ -135,6 +135,32 @@ pub struct RcIncr(Rc<Cell<u64>>);
 /// # Examples
 ///
 /// ```
+/// use std::thread::{spawn, JoinHandle};
+/// use std::sync::{Arc, Barrier};
+/// use incr::AtomicIncr;
+///
+/// let last: AtomicIncr = Default::default();
+/// let barrier = Arc::new(Barrier::new(2));
+/// let thread: JoinHandle<u64> = {
+///     let barrier = Arc::clone(&barrier);
+///     let last = last.clone();
+///     spawn(move || {
+///         assert_eq!(last.is_new(2), true);
+///         assert_eq!(last.is_new(3), true);
+///         assert_eq!(last.is_new(3), false);
+///         barrier.wait();
+///         last.get()
+///     })
+/// };
+/// barrier.wait();
+/// assert_eq!(last.is_new(3), false);
+/// assert_eq!(thread.join().unwrap(), 3);
+/// ```
+///
+/// It's also possible to access the inner `Arc<AtomicU64>` by consuming the
+/// outer wrapper:
+///
+/// ```
 /// # #![cfg_attr(feature = "nightly", feature(integer_atomics))]
 /// # use std::sync::atomic::*;
 /// # use std::sync::Arc;
@@ -236,13 +262,15 @@ impl Incr {
         }
     }
 
-    /// Returns the current maximum.
+    /// Returns the current value of `self`, which is the maximum observed value.
     pub fn get(&self) -> u64 { self.0 }
 }
 
 impl<K> Map<K>
     where K: Eq + Hash
 {
+    /// Returns `true` if `val` is greater than the highest observed value at
+    /// `key`. If `key` does not exist, inserts `val` at `key` and returns `true`.
     pub fn is_new(&mut self, k: K, val: u64) -> bool {
         let prev = self.0.entry(k).or_insert(0);
         if val > *prev {
@@ -253,13 +281,22 @@ impl<K> Map<K>
         }
     }
 
-    /// Returns the current maximum.
-    pub fn get(&self, k: &K) -> u64 {
-        self.0.get(k).cloned().unwrap_or(0)
+    /// Returns the highest observed value at `key`, or, if `key` does not exist,
+    /// returns `0`.
+    pub fn get<Q>(&self, key: &Q) -> u64
+        where K: Borrow<Q>,
+              Q: ?Sized + Hash + Eq
+    {
+        self.0.get(key)
+            .cloned()
+            .unwrap_or(0)
     }
 
-    pub fn contains_key(&self, k: &K) -> bool {
-        self.0.contains_key(k)
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+        where K: Borrow<Q>,
+              Q: ?Sized + Hash + Eq
+    {
+        self.0.contains_key(key)
     }
 
     pub fn len(&self) -> usize { self.0.len() }
@@ -282,7 +319,7 @@ impl RcIncr {
         }
     }
 
-    /// Returns the current maximum.
+    /// Returns the current value of `self`, which is the maximum observed value.
     pub fn get(&self) -> u64 { self.0.get() }
 }
 
@@ -312,7 +349,7 @@ impl AtomicIncr {
         gt
     }
 
-    /// Returns the current maximum.
+    /// Returns the current value of `self`, which is the maximum observed value.
     pub fn get(&self) -> u64 {
         self.0.load(Ordering::Acquire) as u64
     }
