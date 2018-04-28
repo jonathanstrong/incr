@@ -51,45 +51,28 @@ assert_eq!(last.get(), 2);
 `AtomicIncr` offers a threadsafe implementation:
 
 ```rust
-#![cfg_attr(feature = "nightly", feature(integer_atomics))]
-use std::sync::atomic::*;
-use std::sync::Arc;
-use std::thread;
-#[cfg(feature = "nightly")]
-use std::sync::atomic::AtomicU64;
-#[cfg(not(feature = "nightly"))]
-use std::sync::atomic::AtomicUsize;
+extern crate incr;
+
+use std::thread::{spawn, JoinHandle};
+use std::sync::{Arc, Barrier};
 use incr::AtomicIncr;
 
-#[cfg(feature = "nightly")]
-type Atomic = AtomicU64;
-#[cfg(not(feature = "nightly"))]
-type Atomic = AtomicUsize;
-
-let stop = Arc::new(AtomicBool::new(false));
-let last: AtomicIncr = Default::default();
-let mut threads = Vec::new();
-for _ in 0..5 {
-    let val: Arc<Atomic> = last.clone().into_inner();
-    let stop = Arc::clone(&stop);
-    threads.push(thread::spawn(move || {
-        loop {
-            val.fetch_add(1, Ordering::Relaxed);
-            thread::yield_now();
-            if stop.load(Ordering::Relaxed) { break }
-        }
-    }));
-}
-
-let mut i = 1;
-
-for _ in 0..100 {
-    i = match last.is_new(i) {
-        true => i + 1,
-        false => i.max(last.get()),
+fn main() {
+    let last: AtomicIncr = Default::default();
+    let barrier = Arc::new(Barrier::new(2));
+    let thread: JoinHandle<u64> = {
+        let barrier = Arc::clone(&barrier);
+        let last = last.clone();
+        spawn(move || {
+            assert_eq!(last.is_new(2), true);
+            assert_eq!(last.is_new(3), true);
+            assert_eq!(last.is_new(3), false);
+            barrier.wait();
+            last.get()
+        })
     };
+    barrier.wait();
+    assert_eq!(last.is_new(3), false);
+    assert_eq!(thread.join().unwrap(), 3);
 }
-stop.store(true, Ordering::SeqCst);
 ```
-
-
