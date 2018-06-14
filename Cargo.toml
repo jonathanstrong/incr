@@ -1,6 +1,6 @@
 [package]
 name = "incr"
-version = "0.2.0-rc.1"
+version = "0.2.0"
 authors = ["Jonathan Strong <jonathan.strong@gmail.com>"]
 description = "Simple, fast and self-contained data structures for checking whether a new value is greater than the previous maximum."
 homepage = "https://github.com/jonathanstrong/incr"
