@@ -656,4 +656,10 @@ mod tests {
         });
         stop.store(true, Ordering::SeqCst);
     }
+
+    #[test]
+    fn check_atomic_incr_default_initial_value() {
+        let last = AtomicIncr::default();
+        assert_eq!(last.get(), 0);
+    }
 }
