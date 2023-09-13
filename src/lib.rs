@@ -28,7 +28,7 @@
 //! crate for the `HashMap` used by `Map` and `AtomicMap`. FNV is faster than the
 //! default hasher but provides no protection against malicious inputs.
 //!
-#![cfg_attr(feature = "nightly", feature(integer_atomics, test))]
+#![cfg_attr(feature = "nightly", feature(test))]
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
